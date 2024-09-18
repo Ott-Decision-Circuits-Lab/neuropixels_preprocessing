@@ -57,7 +57,7 @@ interpolation_param_dict = dict(
         int(.3 * sps),   # movement to side port
         # int(0.5 * sps),  # first 0.5s of anticipation epoch
         # int(0.5 * sps),  # second part of anticipation epoch warped into 0.5s (actually half second in reward-bias)
-        int(3.0 * sps),  # anticipation epoch
+        None,  # anticipation epoch  1.0 for reward-bias and 3.0 for time-investment
         int(1.5 * sps),  # after feedback
     ],
     pre_center_interval = int(0.5 * sps),
