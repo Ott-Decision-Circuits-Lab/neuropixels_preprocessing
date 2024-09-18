@@ -21,9 +21,20 @@ def select_choice_trials_w_TTLs(behav_df):
     behav_df.reset_index(drop=True, inplace=True)
     assert np.all(behav_df['valid_curation'])
 
-    print('and selecting choice trials.', flush=True)
+    print('and selecting choice trials...', flush=True)
     choice_df = behav_df[behav_df['MadeChoice']]
-    return choice_df.reset_index(drop=True)
+    choice_df.reset_index(drop=True, inplace=True)
+
+    print('with a WaitingTime > 0.94 (remove SkippedReward)...', flush=True)
+    n_skipped = np.sum((choice_df['SkippedReward']))
+    n_short = np.sum((choice_df['WaitingTime']<0.949) & (~choice_df['SkippedReward']))
+    n_choices = len(choice_df)
+    print(f"{n_skipped} skipped rewards and {n_short} other trials with insufficient waiting time...")
+    choice_df = choice_df[(choice_df['WaitingTime'] >= 0.949) & (~choice_df['SkippedReward'])]
+    assert len(choice_df) == n_choices - n_skipped - n_short
+    choice_df.reset_index(drop=True, inplace=True)
+
+    return choice_df
 
 def filter_valid_time_investment_trials(behav_data, task, minimum_wait_time=2.0):
     """
