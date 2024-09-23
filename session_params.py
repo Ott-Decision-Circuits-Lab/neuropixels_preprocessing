@@ -105,7 +105,6 @@ def save_directory_helper(data_root):
             data_root = '/media/ottlab/gregory/'
     elif data_root == 'local':
         data_root = f'/home/{getlogin()}/Workspace/ott_neuropix_data/'
-    data_root += 'clustering_results/'
     return data_root
 
 def write_session_metadata_to_csv(metadata, data_root):
