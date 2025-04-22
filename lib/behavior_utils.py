@@ -43,7 +43,7 @@ def filter_valid_time_investment_trials(behav_data, task, minimum_wait_time=2.0)
     :param minimum_wait_time: [seconds] Lower cut-off for a valid 'waiting-time'
     :return:
     """
-    if task=='time-investment':
+    if task in ('time-investment', 'double', 'temporal-reward-bias'):
         # CatchTrial
         rewarded_catches = [x in np.where(behav_data['Rewarded'])[0] for x in np.where(behav_data['CatchTrial'])[0]]
         if np.any(rewarded_catches):
