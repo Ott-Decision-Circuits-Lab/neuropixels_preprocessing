@@ -229,7 +229,7 @@ def align_traces_to_task_events(behav_df,
     #                           Prepare data                               #
     # -------------------------------------------------------------------- #
     traces = subsample_spike_mat(trialwise_start_align_spike_mat_in_ms, sub_dt)
-    n_neurons, n_trials, n_time_bins  = traces.shape
+    n_neurons, n_trials, n_time_bins = traces.shape
     sps = 1000 / sub_dt  # (samples per second) resolution of aligned traces
 
     print(f'Check: the trial number in the spike and behavioral data match: {len(behav_df)}, {n_trials}')

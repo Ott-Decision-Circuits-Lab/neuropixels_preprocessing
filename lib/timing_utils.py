@@ -184,7 +184,8 @@ def extract_TTL_trial_start_times(session_path, gap_filename, DIO_port, save_dir
     in the directory save_dir
     """
 
-    dio_path = '.'.join(session_path.split('.')[:-2]) + '.DIO/'
+    #dio_path = '.'.join(session_path.split('.')[:-2]) + '.DIO/'
+    dio_path = session_path + '.'.join(session_path.split('/')[-2].split('.')[:-1]) + '.DIO/'
 
     # each analog MCU input pin will have its own .dat file
     dio_file_list = listdir(dio_path)
