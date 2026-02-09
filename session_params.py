@@ -57,10 +57,10 @@ interpolation_param_dict = dict(
         int(.3 * sps),   # movement to side port
         # int(0.5 * sps),  # first 0.5s of anticipation epoch
         # int(0.5 * sps),  # second part of anticipation epoch warped into 0.5s (actually half second in reward-bias)
-        None,  # anticipation epoch  1.0 for reward-bias and 3.0 for time-investment
-        int(1.5 * sps),  # after feedback
+        int(2 * sps),  # anticipation epoch  1.0 for reward-bias and 3.0 for time-investment
+        int(4 * sps),  # after feedback
     ],
-    pre_center_interval = int(0.5 * sps),
+    pre_center_interval = 'All', #int(0.5 * sps),
     post_response_interval = None,  # int(0.5 * sps) or None.  If None, then the midpoint between response start and end is used
     downsample_dt=trace_subsample_bin_size_ms,
 )
@@ -95,7 +95,7 @@ def get_root_path(data_root):
     else:
         data_root = data_root + 'Neurodata/'
     data_root += 'data_cache/'
-    print('Loading data from', data_root)
+    # print('Loading data from', data_root)
     return data_root
 
 def save_directory_helper(data_root):
@@ -116,7 +116,7 @@ def write_session_metadata_to_csv(metadata, data_root):
     except:
         columns = ['ott_lab', 'rat_name', 'date', 'experimenter', 'region',
                    'trodes_datetime', 'trodes_logfile', 'trodes_config', 'recording_type',
-                   'n_probes', 'DIO_port_num', 'kilosort_ver',
+                   'n_probes', 'DIO_port_num', 'kilosort_ver', 'valid_periods',
                    'behav_datetime', 'task', 'behavior_mat_file']
         ephys_df = pd.DataFrame(columns=columns)
 
