@@ -5,22 +5,22 @@ import pandas as pd
 def read_metadata():
     metadata = dict(
         ott_lab = False,
-        rat_name = 'TQ03',
-        date = '20210617',
+        rat_name = 'TQ02',
+        date = '20210504',
         experimenter = 'Amy',
         region = 'lOFC',
         # ----------------------------------- #
         trodes_datetime = '20210617_115450',
         trodes_logfile = '',
         trodes_config = '',
-        recording_type = 'neuropixels_1.0',
+        recording_type = 'Neuropixels 1.0',
         n_probes = 2,
         DIO_port_num = 6,
         kilosort_ver = 4,
         valid_periods = '',  # A string with periods separated by a comma (e.g., '0-1000, 2000-T').  T=end of session.
         # ----------------------------------- #
-        behav_datetime = '20210617',
-        task = 'time-investment'  # ['matching', 'reward-bias', 'time-investment']
+        behav_datetime = '20210504',
+        task = 'reward-bias'  # ['matching', 'reward-bias', 'time-investment']
         # ----------------------------------- #
     )
 

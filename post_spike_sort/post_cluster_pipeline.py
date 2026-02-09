@@ -25,13 +25,13 @@ from neuropixels_preprocessing.session_params import *
 # ---------------------------------------------------------------------- #
 NEW_SESSION = False
 DATA_ROOT = 'local'  # ['local', 'server', 'X:', etc.]
-SPIKES_AND_TTL = True
-BEHAVIOR = True
+SPIKES_AND_TTL = False
+BEHAVIOR = False
 LFPs = False
 DATA_OBJECT = True
 
 SAVE_INDIVIDUAL_SPIKETRAINS = True
-WRITE_METADATA = True
+WRITE_METADATA = False
 # ---------------------------------------------------------------------- #
 
 
@@ -43,14 +43,15 @@ if NEW_SESSION:
 else:  # Used for rerunning parts or all of the pipeline on existing sessions
     DATA_DIR = get_root_path(DATA_ROOT)
     metadata_l = []
-    RB_rat_name_l = ['TQ02', 'TQ02', 'TQ03', 'TQ03', 'Nina2']
-    RB_date_l = ['20210505', '20210506', '20210615', '20210616', '20210625']
-    for rat, session in zip(RB_rat_name_l, RB_date_l):
+    rat_name_l = ['TQ02', 'TQ02', 'TQ03', 'TQ03', 'Nina2', 'Nina2']
+    RB_date_l = ['20210505', '20210506', '20210615', '20210616', '20210625', '20210626']
+    TI_date_l = ['20210430', '20210507', '20210611', '20210617',  '20210622', '20210623']
+    rat_name_l = rat_name_l + rat_name_l
+    date_l = RB_date_l + TI_date_l
+    for rat, session in zip(rat_name_l, date_l):
         metadata_l.append(load_session_metadata_from_csv(data_root=DATA_ROOT, rat=rat, session_date=session))
 
 for metadata in metadata_l:
-    interpolation_param_dict['trial_event_interpolation_lengths'][4] = \
-        int(1.0 * sps) if metadata['task'] == 'reward-bias' else int(3.0 * sps)
     session_paths = get_session_path(metadata, DATA_ROOT, is_ephys_session=True)
     preprocess_dir = session_paths['preprocess_dir']
     ou.make_dir_if_nonexistent(preprocess_dir)
@@ -174,11 +175,11 @@ for metadata in metadata_l:
             # -------------------------------------------------------- #
             print('Creating data object...')
             metadata['nrn_phy_ids'] = joblib.load(probe_save_dir + f"spike_mat_in_ms.npy")['row_cluster_id']
-            data_objs.TwoAFC(probe_save_dir, choice_df, metadata).to_pickle()
+            data_objs.TwoAFC(probe_save_dir, choice_df, metadata, verbose=False).to_pickle()
             print('---------------------------------------------------------------------------------')
 
 
         if WRITE_METADATA:
             metadata['n_good_units'] = n_neurons
             metadata['n_trials'] = n_trials
-            metadata = write_session_metadata_to_csv(metadata, DATA_ROOT)
+            metadata = write_session_metadata_to_csv(metadata, 'local')
