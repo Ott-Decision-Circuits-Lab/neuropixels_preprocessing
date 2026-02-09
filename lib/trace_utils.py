@@ -252,8 +252,8 @@ def align_traces_to_task_events(behav_df,
     # -----------------------Response-aligned frame------------------------------- #
     print('Aligning to response:')
     align_dict = dict(index_arr = event_idx['response_start'])
-    align_dict['begin_arr']   = np.maximum(event_idx['response_start'] - d['pre_response_interval'], event_idx['stim_off'])
-    align_dict['end_arr']     = np.minimum(event_idx['response_start'] + d['post_response_interval'], event_idx['response_end'])
+    align_dict['begin_arr']   = event_idx['response_start'] - d['pre_response_interval'] # np.maximum(event_idx['response_start'] - d['pre_response_interval'], event_idx['stim_off'])
+    align_dict['end_arr']     = event_idx['response_start'] + d['post_response_interval'] #np.minimum(event_idx['response_start'] + d['post_response_interval'], event_idx['response_end'])
     align_dict['pre_buffer']  = d['pre_response_interval']
     align_dict['post_buffer'] = d['post_response_interval']
 
