@@ -58,7 +58,7 @@ interpolation_param_dict = dict(
         # int(0.5 * sps),  # first 0.5s of anticipation epoch
         # int(0.5 * sps),  # second part of anticipation epoch warped into 0.5s (actually half second in reward-bias)
         int(2 * sps),  # anticipation epoch  1.0 for reward-bias and 3.0 for time-investment
-        int(4 * sps),  # after feedback
+        int(2 * sps),  # after feedback
     ],
     pre_center_interval = 'All', #int(0.5 * sps),
     post_response_interval = None,  # int(0.5 * sps) or None.  If None, then the midpoint between response start and end is used
