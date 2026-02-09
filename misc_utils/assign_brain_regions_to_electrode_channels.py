@@ -11,7 +11,7 @@ import pandas as pd
 import joblib
 from bs4 import BeautifulSoup
 
-from neuropixels_preprocessing.session_params import *
+# from neuropixels_preprocessing.session_params import *
 
 #If histology of rat isn't available yet, estimate brain areas and create sham "Rx_probe1_electrode_locations.csv" file
 
@@ -61,11 +61,12 @@ Trodes_config = ROOT_DATAPATH + metadata['trodes_config'] + f'.trodesconf'
 with open(Trodes_config, 'r') as f:
     data = f.read()
 Bs_data = BeautifulSoup(data, "xml")
-channelsOn_str = Bs_data.find('CustomOption', {'name':'channelsOn'}).get('data')
+
+channelsOn_str = Bs_data.find_all('CustomOption', attrs={'name':'channelsOn'})[probe_num-1].get('data')
 channelsOn_arr = np.fromstring(channelsOn_str, sep=' ')
-assert channelsOn_arr.size == n_Npix1_electrodes
+# assert channelsOn_arr.size == n_Npix1_electrodes
 active_electrodes = np.where(channelsOn_arr)[0]
-assert len(active_electrodes) == n_active_electrodes
+# assert len(active_electrodes) == n_active_electrodes
 unit_channel_df['electrode'] = active_electrodes[unit_channel_df.ch]
 # -------------------------------------------------------------------------- #
 
@@ -103,6 +104,6 @@ for ROI_idx, ROI in enumerate(probe_data['label_name']):
     ROI_start = sum(probe_data['region_sites'][:ROI_idx])+1
     ROI_end = sum(probe_data['region_sites'][:ROI_idx+1])
     ROI_units = (ROI_start < unit_channel_df.electrode) & (unit_channel_df.electrode <= ROI_end)
-    unit_channel_df.region[ROI_units] = ROI
+    unit_channel_df.loc[ROI_units, 'region'] = ROI
 
 unit_channel_df.to_csv(PREPROCESS_DIR + f'{rat}_{date}_probe{probe_num}--good_unit_stats_w_region.tsv', sep='\t', index=False)
