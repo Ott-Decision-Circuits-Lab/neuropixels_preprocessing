@@ -5,31 +5,37 @@ from scipy.io import loadmat
 from joblib import load, dump
 import matplotlib.pyplot as plt
 
-def select_choice_trials_w_TTLs(behav_df):
-    print('Removing trials corresponding to or preceding a gap...', flush=True)
-    no_matching_TTL_start_time = np.where(behav_df['no_matching_TTL_start_time'])[0]
-    no_matching_TTL_end_time = no_matching_TTL_start_time - 1
-    behav_df.drop(np.hstack([no_matching_TTL_start_time, no_matching_TTL_end_time]), axis=0, inplace=True)
-    behav_df.reset_index(drop=True, inplace=True)
-    assert np.all(behav_df['no_matching_TTL_start_time'] == False)
-    if np.isnan(behav_df.iloc[-1]['TrialLength']):
-        behav_df = behav_df[:-1]
-    assert np.all(~np.isnan(behav_df['TrialLength']))
+def select_choice_trials_w_TTLs(behav_df, verbose=True):
+    if verbose:
+        print('Removing trials corresponding to or preceding a gap...', flush=True)
+    if 'no_matching_TTL_start_time' in behav_df.columns:
+        no_matching_TTL_start_time = np.where(behav_df['no_matching_TTL_start_time'])[0]
+        no_matching_TTL_end_time = no_matching_TTL_start_time - 1
+        behav_df.drop(np.hstack([no_matching_TTL_start_time, no_matching_TTL_end_time]), axis=0, inplace=True)
+        behav_df.reset_index(drop=True, inplace=True)
+        assert np.all(behav_df['no_matching_TTL_start_time'] == False)
+        if np.isnan(behav_df.iloc[-1]['TrialLength']):
+            behav_df = behav_df[:-1]
+        assert np.all(~np.isnan(behav_df['TrialLength']))
 
-    print('or occurring in an invalid period detected during curation...', flush=True)
+    if verbose:
+        print('or occurring in an invalid period detected during curation...', flush=True)
     behav_df = behav_df[behav_df['valid_curation']]
     behav_df.reset_index(drop=True, inplace=True)
     assert np.all(behav_df['valid_curation'])
 
-    print('and selecting choice trials...', flush=True)
+    if verbose:
+        print('and selecting choice trials...', flush=True)
     choice_df = behav_df[behav_df['MadeChoice']]
     choice_df.reset_index(drop=True, inplace=True)
 
-    print('with a WaitingTime > 0.94 (remove SkippedReward)...', flush=True)
+    if verbose:
+        print('with a WaitingTime < 0.94 (remove SkippedReward)...', flush=True)
     n_skipped = np.sum((choice_df['SkippedReward']))
     n_short = np.sum((choice_df['WaitingTime']<0.949) & (~choice_df['SkippedReward']))
     n_choices = len(choice_df)
-    print(f"{n_skipped} skipped rewards and {n_short} other trials with insufficient waiting time...")
+    if verbose:
+        print(f"{n_skipped} skipped rewards and {n_short} other trials with insufficient waiting time...")
     choice_df = choice_df[(choice_df['WaitingTime'] >= 0.949) & (~choice_df['SkippedReward'])]
     assert len(choice_df) == n_choices - n_skipped - n_short
     choice_df.reset_index(drop=True, inplace=True)
