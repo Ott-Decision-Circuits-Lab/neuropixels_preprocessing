@@ -22,6 +22,20 @@ def make_dir_if_nonexistent(path, verbose=True):
             print(f"{path} already exists.", flush=True)
 
 
+def load_data_obj_from_metadata_csv(data_root, rat_name, date, probe):
+    md = load_session_metadata_from_csv(data_root, rat=rat_name, session_date=date)
+    md['probe_num'] = probe
+    _paths = get_session_path(md, data_root, is_ephys_session=True)
+
+    _obj = from_pickle(_paths['preprocess_dir'], probe, TwoAFC)
+    _obj.n_neurons = len(_obj.metadata['nrn_phy_ids'])
+    _obj.probe_dir = _paths['preprocess_dir'] + f"probe{probe}/"
+    _obj.sort_dir = _paths['rec_dir'] + f"sorting_output/probe{probe}/sorter_output/"
+    _obj.behavior_mat_path = _paths['behav_dir'] + md['behavior_mat_file']
+
+    return _obj
+
+
 def combine_session_data_objects(data_root, rat_name_l, date_l):
     data_obj_l = []
     for sesh_i in range(len(date_l)):
@@ -30,11 +44,11 @@ def combine_session_data_objects(data_root, rat_name_l, date_l):
             _metadata['probe_num'] = probe_i
             _paths = get_session_path(_metadata, data_root, is_ephys_session=True)
 
-            _obj = from_pickle(_paths['preprocess_dir'], probe_i, TwoAFC)
+            _obj = from_pickle(_paths['preprocess_dir'], probe_i, TwoAFC, verbose=False)
             _obj.n_neurons = len(_obj.metadata['nrn_phy_ids'])
             _obj.probe_dir = _paths['preprocess_dir'] + f"probe{probe_i}/"
             _obj.sort_dir = _paths['rec_dir'] + f"sorting_output/probe{probe_i}/sorter_output/"
-            print(_obj, 'loaded from ', _obj.data_path)
+            # print(_obj, 'loaded from ', _obj.data_path)
 
             _obj.behavior_mat_path = _paths['behav_dir'] + _metadata['behavior_mat_file']
             data_obj_l.append(_obj)
