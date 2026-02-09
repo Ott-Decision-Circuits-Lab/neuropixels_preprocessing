@@ -18,20 +18,56 @@ import joblib
 import neuropixels_preprocessing.lib.trace_utils as trace_utils
 import neuropixels_preprocessing.lib.behavior_utils as bu
 
+
 class DataContainer:
-    def __init__(self, data_path, behav_df, metadata):
+    def __init__(self, data_path, behav_df, metadata, verbose):
         self.data_path = data_path
         self.behav_df = behav_df
-        self.choice_df = bu.select_choice_trials_w_TTLs(self.behav_df)
+        self.choice_df = bu.select_choice_trials_w_TTLs(self.behav_df, verbose)
         self.metadata = metadata
-        self.objID = f"{metadata['rat_name']}_{metadata['date']}_{metadata['task']}_probe{metadata['probe_num']}"
+        self.objID = f"{metadata['rat_name']}_{metadata['date']}_{metadata['task']}"
+        if 'probe_num' in metadata:
+           self.objID += f"_probe{metadata['probe_num']}"
             
-    def load_cluster_info(self, cluster_filename):
-        cluster_dict = joblib.load(cluster_filename)[self.objID]
-        self.cluster_neurons = cluster_dict['neurons']
-        self.cluster_labels = cluster_dict['labels']
-        assert len(self.cluster_neurons) <= len(self.metadata['nrn_phy_ids'])
-    
+    def load_cluster_info(self, cluster_filename, cluster_params=None):
+        # cluster_dict = joblib.load(cluster_filename)[self.objID]
+        self.n_neurons = len(self.metadata['nrn_phy_ids'])
+        # self.cluster_labels = cluster_dict['labels']
+        cluster_results_dict = joblib.load(cluster_filename)
+        cluster_df = cluster_results_dict['df']
+
+        self.clust_p = cluster_params if cluster_params else cluster_results_dict['params']
+
+        obj_df = cluster_df[cluster_df.rat_name==self.metadata['rat_name']]
+        obj_df = obj_df[obj_df.session_date==self.metadata['date']]
+        obj_df = obj_df[obj_df.probe_num==self.metadata['probe_num']]
+        obj_df.sort_values('neuron', inplace=True)
+        obj_df.reset_index(drop=True, inplace=True)
+
+        if 'filter_uncertain_neurons' in self.clust_p.keys() and self.clust_p['filter_uncertain_neurons']:
+            obj_df = obj_df[obj_df['significant_regressor']]
+
+        if 'filter_stable' in self.clust_p.keys() and self.clust_p['filter_stable']:
+            self.stable_neurons = obj_df['stability_score'] > self.clust_p['stability_threshold']
+
+
+        if 'use_regressor_results_to_find_encoders' in self.clust_p.keys() and \
+                self.clust_p['use_regressor_results_to_find_encoders'][0]:
+            R2_thresh = self.clust_p['use_regressor_results_to_find_encoders'][1]
+            self.encoding_neurons = obj_df[f'R2>{R2_thresh}']
+
+        if 'cluster' in obj_df:
+            keepers = np.ones(self.n_neurons).astype(bool)
+            if 'filter_stable' in self.clust_p.keys() and self.clust_p['filter_stable']:
+                keepers = keepers & self.stable_neurons
+            if 'use_regressor_results_to_find_encoders' in self.clust_p.keys() and \
+                self.clust_p['use_regressor_results_to_find_encoders'][0]:
+                keepers = keepers & self.encoding_neurons
+
+            self.cluster_neurons = obj_df.loc[keepers, 'neuron'].to_numpy()
+            self.cluster_labels = obj_df.loc[keepers, 'cluster'].to_numpy()
+        # assert len(self.cluster_neurons) <= len(self.metadata['nrn_phy_ids'])  # Could be fewer if some neurons weren't used for clustering.
+
     def neurons_of_cluster(self, clust_i):
        return self.cluster_neurons[self.cluster_labels == clust_i]
 
@@ -58,6 +94,44 @@ class DataContainer:
                 self.interp_inds = [np.sum(self.interp_inds[0:i]) for i in np.arange(1, len(self.interp_inds) + 1)]
         else:
             raise NotImplementedError()
+
+    def align_full_trial_trace_to_(self, nrn_rowID, trace_type, downsample_dt):
+        start_aligned_spike_mat_in_ms = joblib.load(self.data_path + f'trialwise_start_align_spike_mat_in_ms')
+        n_nrns, n_trials, T_ms = start_aligned_spike_mat_in_ms.shape
+        start_aligned_spike_mat_subbed = trace_utils.subsample_spike_mat(start_aligned_spike_mat_in_ms[nrn_rowID].reshape(1, n_trials, T_ms), downsample_dt)[0]
+
+        assert start_aligned_spike_mat_subbed.shape[0] == len(self.choice_df) == n_trials
+        event_idx_dict = trace_utils.get_trial_event_indices(in_reference_to='TrialStart', behav_df=self.choice_df, sps=1000/10, resp_start_align_buffer=None)
+
+        if trace_type=='stimulus':
+            event_idx = event_idx_dict['stim_on']
+        elif trace_type == 'response':
+            event_idx = event_idx_dict['response_start']
+        elif trace_type == 'reward':
+            event_idx = event_idx_dict['response_end']
+
+        align_point = event_idx.max()
+        trial_len_arr = event_idx_dict['trial_len_in_bins']
+        after_event_arr = trial_len_arr - event_idx
+        align_mat = np.zeros((n_trials, align_point + np.max(after_event_arr)))
+        for i in range(n_trials):
+            align_mat[i, align_point - event_idx[i]: align_point + after_event_arr[i]] = start_aligned_spike_mat_subbed[i, :trial_len_arr[i]]
+
+        # plt.imshow(align_mat[:, align_point - int(event_idx.mean()):align_point + int(after_event_arr.mean())], cmap='Grays', vmax=0.1)
+
+        # new_align_point = int(event_idx.mean())
+        # plt.axvline(new_align_point)
+        # plt.plot(gaussian_filter1d(trial_len_arr, sigma=10))
+        zoomed_mat = align_mat[:, align_point - int(event_idx.mean()):align_point + int(after_event_arr.mean())]
+        return zoomed_mat, int(event_idx.mean())
+
+
+
+
+
+
+
+
 
     def __getitem__(self, item):
         """
@@ -218,21 +292,22 @@ class DataContainer:
         print('Done.')
 
 
-def from_pickle(behav_path, probe, obj_class):
+def from_pickle(behav_path, probe, obj_class, verbose=True):
     data_path = behav_path + f"probe{probe}/"
     metadata = joblib.load(data_path + 'metadata')
     behav_df = joblib.load(behav_path + 'behav_df')
-    
-    for red_flag in ['no_matching_TTL_start_time', 'large_TTL_gap_after_start']:
-        if red_flag in behav_df.keys() and behav_df[red_flag].sum()>0:
-            print('Trials with ' + red_flag + '!!!')
 
-    return obj_class(data_path, behav_df=behav_df, metadata=metadata)
+    if verbose:
+        for red_flag in ['no_matching_TTL_start_time', 'large_TTL_gap_after_start']:
+            if red_flag in behav_df.keys() and behav_df[red_flag].sum()>0:
+                print('Trials with ' + red_flag + '!!!')
+
+    return obj_class(data_path, behav_df=behav_df, metadata=metadata, verbose=verbose)
 
 
 class TwoAFC(DataContainer):
-    def __init__(self, data_path, behav_df, metadata):
-        super().__init__(data_path, behav_df, metadata)
+    def __init__(self, data_path, behav_df, metadata, verbose):
+        super().__init__(data_path, behav_df, metadata, verbose)
 
 
 # def create_experiment_data_object(data_path, metadata, nrn_phy_ids, trialwise_binned_mat, cbehav_df):
