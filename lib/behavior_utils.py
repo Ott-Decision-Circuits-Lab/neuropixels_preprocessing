@@ -226,11 +226,15 @@ def calc_event_outcomes(behav_data, metadata, ephys=True):
     # ------------------------------------------------------------------------ #
     #                       Trial timestamps
     # ------------------------------------------------------------------------ #
-    _sd['StimulusOnset'] = np.zeros(n_trials)
     _sd['PokeCenterStart'] = np.zeros(n_trials)
+    _sd['StimulusOnset'] = np.zeros(n_trials)
 
     _sd['ResponseStart'] = np.zeros(n_trials)
     _sd['ResponseEnd'] = np.zeros(n_trials)
+    _sd['WaterDelivery'] = np.zeros(n_trials)
+    _sd['DrinkStart'] = np.zeros(n_trials)
+    _sd['DrinkEnd'] = np.zeros(n_trials)
+    _sd['ITI_Start'] = np.zeros(n_trials)
 
     if metadata['task'] == 'matching':
         Cin_str = 'StartCIn'
@@ -245,6 +249,13 @@ def calc_event_outcomes(behav_data, metadata, ephys=True):
         StimOn_str = 'stimulus_delivery_min'
         Rin_str = 'start_Rin'
         Lin_str = 'start_Lin'
+        L_water_str = 'water_L'
+        L_drink_str = 'DrinkingL'
+        L_drink_grace_str = 'DrinkingGraceL'
+        R_water_str = 'water_R'
+        R_drink_str = 'DrinkingR'
+        R_drink_grace_str = 'DrinkingGraceR'
+        ITI_start_str = 'ITI'
         Feedback_str = 'FeedbackTime'
         Sample_str = 'SampleLength' if OTT_LAB_DATA else 'ST'
         DV_str = 'DecisionVariable' if OTT_LAB_DATA else 'DV'
@@ -255,16 +266,26 @@ def calc_event_outcomes(behav_data, metadata, ephys=True):
 
         _sd.loc[nt, 'PokeCenterStart'] = nt_states[Cin_str][0]
         _sd.loc[nt, 'StimulusOnset'] = nt_states[StimOn_str][0]
+        _sd.loc[nt, 'ITI_Start'] = nt_states[ITI_start_str][0]
 
         if ~np.isnan(nt_states[Rin_str][0]):
             _sd.loc[nt,'ResponseStart'] = nt_states[Rin_str][0]
             _sd.loc[nt,'ResponseEnd'] = nt_states[Rin_str][0] + _sd_custom[Feedback_str][nt]
+            _sd.loc[nt,'WaterDelivery'] = nt_states[R_water_str][0]
+            _sd.loc[nt,'DrinkStart'] = np.min(nt_states[R_drink_str])
+            _sd.loc[nt,'DrinkEnd'] = np.max([nt_states[R_drink_str].max(), nt_states[R_drink_grace_str].max()])
         elif ~np.isnan(nt_states[Lin_str][0]):
             _sd.loc[nt,'ResponseStart'] = nt_states[Lin_str][0]
             _sd.loc[nt,'ResponseEnd'] = nt_states[Lin_str][0] + _sd_custom[Feedback_str][nt]
+            _sd.loc[nt,'WaterDelivery'] = nt_states[L_water_str][0]
+            _sd.loc[nt,'DrinkStart'] = np.min(nt_states[L_drink_str])
+            _sd.loc[nt,'DrinkEnd'] = np.max([nt_states[L_drink_str].max(), nt_states[L_drink_grace_str].max()])
         else:
             _sd.loc[nt,'ResponseStart'] = np.nan
             _sd.loc[nt,'ResponseEnd'] = np.nan
+            _sd.loc[nt,'WaterDelivery'] = np.nan
+            _sd.loc[nt,'DrinkStart'] = np.nan
+            _sd.loc[nt,'DrinkEnd'] = np.nan
 
     _sd['SamplingDuration'] = _sd_custom[Sample_str][:n_trials]
     _sd['StimulusOffset'] = _sd['StimulusOnset'] + _sd['SamplingDuration']
