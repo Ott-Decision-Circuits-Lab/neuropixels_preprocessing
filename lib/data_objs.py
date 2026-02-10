@@ -99,9 +99,10 @@ class DataContainer:
         start_aligned_spike_mat_in_ms = joblib.load(self.data_path + f'trialwise_start_align_spike_mat_in_ms')
         n_nrns, n_trials, T_ms = start_aligned_spike_mat_in_ms.shape
         start_aligned_spike_mat_subbed = trace_utils.subsample_spike_mat(start_aligned_spike_mat_in_ms[nrn_rowID].reshape(1, n_trials, T_ms), downsample_dt)[0]
+        sps = 1000/downsample_dt
 
         assert start_aligned_spike_mat_subbed.shape[0] == len(self.choice_df) == n_trials
-        event_idx_dict = trace_utils.get_trial_event_indices(in_reference_to='TrialStart', behav_df=self.choice_df, sps=1000/10, resp_start_align_buffer=None)
+        event_idx_dict = trace_utils.get_trial_event_indices(in_reference_to='TrialStart', behav_df=self.choice_df, sps=sps, resp_start_align_buffer=None)
 
         if trace_type=='stimulus':
             event_idx = event_idx_dict['stim_on']
@@ -109,6 +110,13 @@ class DataContainer:
             event_idx = event_idx_dict['response_start']
         elif trace_type == 'reward':
             event_idx = event_idx_dict['response_end']
+        elif trace_type == 'water':
+            event_idx = (self.choice_df['WaterDelivery'].values * sps)
+            nan_idx = np.where(np.isnan(event_idx))
+            event_idx[nan_idx] = event_idx_dict['response_end'][nan_idx] + 5
+            event_idx = event_idx.astype(int)
+        elif trace_type == 'leaving':
+            event_idx = (self.choice_df['ITI_Start'].values * sps).astype(int)
 
         align_point = event_idx.max()
         trial_len_arr = event_idx_dict['trial_len_in_bins']
@@ -117,13 +125,15 @@ class DataContainer:
         for i in range(n_trials):
             align_mat[i, align_point - event_idx[i]: align_point + after_event_arr[i]] = start_aligned_spike_mat_subbed[i, :trial_len_arr[i]]
 
+        return align_mat, align_point
+
         # plt.imshow(align_mat[:, align_point - int(event_idx.mean()):align_point + int(after_event_arr.mean())], cmap='Grays', vmax=0.1)
 
         # new_align_point = int(event_idx.mean())
         # plt.axvline(new_align_point)
         # plt.plot(gaussian_filter1d(trial_len_arr, sigma=10))
-        zoomed_mat = align_mat[:, align_point - int(event_idx.mean()):align_point + int(after_event_arr.mean())]
-        return zoomed_mat, int(event_idx.mean())
+        # zoomed_mat = align_mat[:, align_point - int(event_idx.mean()):align_point + int(after_event_arr.mean())]
+        # return zoomed_mat, int(event_idx.mean())
 
 
 
