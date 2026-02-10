@@ -230,6 +230,7 @@ def calc_event_outcomes(behav_data, metadata, ephys=True):
     _sd['StimulusOnset'] = np.zeros(n_trials)
 
     _sd['ResponseStart'] = np.zeros(n_trials)
+    _sd['SkippedFeedback'] = np.zeros(n_trials).astype(bool)
     _sd['ResponseEnd'] = np.zeros(n_trials)
     _sd['WaterDelivery'] = np.zeros(n_trials)
     _sd['DrinkStart'] = np.zeros(n_trials)
@@ -256,6 +257,7 @@ def calc_event_outcomes(behav_data, metadata, ephys=True):
         R_drink_str = 'DrinkingR'
         R_drink_grace_str = 'DrinkingGraceR'
         ITI_start_str = 'ITI'
+        SkippedFB_str = 'timeOut_SkippedFeedback'
         Feedback_str = 'FeedbackTime'
         Sample_str = 'SampleLength' if OTT_LAB_DATA else 'ST'
         DV_str = 'DecisionVariable' if OTT_LAB_DATA else 'DV'
@@ -267,6 +269,7 @@ def calc_event_outcomes(behav_data, metadata, ephys=True):
         _sd.loc[nt, 'PokeCenterStart'] = nt_states[Cin_str][0]
         _sd.loc[nt, 'StimulusOnset'] = nt_states[StimOn_str][0]
         _sd.loc[nt, 'ITI_Start'] = nt_states[ITI_start_str][0]
+        _sd.loc[nt, 'SkippedFeedback'] = not np.isnan(nt_states[SkippedFB_str][0])
 
         if ~np.isnan(nt_states[Rin_str][0]):
             _sd.loc[nt,'ResponseStart'] = nt_states[Rin_str][0]
