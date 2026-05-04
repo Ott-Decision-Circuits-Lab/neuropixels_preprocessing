@@ -95,14 +95,58 @@ class DataContainer:
         else:
             raise NotImplementedError()
 
-    def align_full_trial_trace_to_(self, nrn_rowID, trace_type, downsample_dt):
-        start_aligned_spike_mat_in_ms = joblib.load(self.data_path + f'trialwise_start_align_spike_mat_in_ms')
-        n_nrns, n_trials, T_ms = start_aligned_spike_mat_in_ms.shape
-        start_aligned_spike_mat_subbed = trace_utils.subsample_spike_mat(start_aligned_spike_mat_in_ms[nrn_rowID].reshape(1, n_trials, T_ms), downsample_dt)[0]
-        sps = 1000/downsample_dt
 
-        assert start_aligned_spike_mat_subbed.shape[0] == len(self.choice_df) == n_trials
-        event_idx_dict = trace_utils.get_trial_event_indices(in_reference_to='TrialStart', behav_df=self.choice_df, sps=sps, resp_start_align_buffer=None)
+    def align_full_trial_traces_to_(self, trace_type, downsample_dt):
+
+        if trace_type == 'wrap':
+            spike_mat = joblib.load(self.data_path + 'spike_mat_in_ms.npy')['spike_mat']
+            n_nrns, T_ms = spike_mat.shape
+            n_trials = len(self.choice_df)
+
+            curr_df = self.choice_df[['TrialNumber', 'TTLTrialStartTime', 'ResponseEnd', 'NextTrialStart']]
+            curr_df['ResponseIndex'] =  np.round(1000 * (curr_df['TTLTrialStartTime'] + curr_df['ResponseEnd']))
+            next_trial_nums = (curr_df['TrialNumber'].values+1)
+            next_df = self.behav_df.query("TrialNumber in @next_trial_nums")[['TrialNumber', 'PokeCenterStart']]
+            next_df['TrialNumber'] = next_df['TrialNumber'] - 1
+
+            next_df.rename(columns={'PokeCenterStart': 'NextCenterPoke'}, inplace=True)
+            curr_df = curr_df.merge(next_df, how='left')
+            curr_df['NextCenterIndex'] = np.round(1000 * (curr_df['NextTrialStart'] + curr_df['NextCenterPoke']))
+            curr_df = curr_df[['TrialNumber', 'TTLTrialStartTime', 'ResponseEnd', 'ResponseIndex', 'NextTrialStart',
+                               'NextCenterPoke', 'NextCenterIndex']]
+            curr_df['ITI'] = curr_df['NextCenterIndex'] - curr_df['ResponseIndex']
+            min_ITI = curr_df['ITI'].min()
+            na_idx = curr_df['NextCenterIndex'].isna()
+            curr_df.loc[na_idx, 'NextCenterIndex'] = curr_df.loc[na_idx, 'ResponseIndex'] + min_ITI
+            curr_df.loc[na_idx, 'ITI'] = min_ITI
+
+            align_mat = np.full((n_nrns, n_trials, int(np.ceil(np.nanmax(curr_df['ITI'])/10)*10)), np.nan)
+            for i in range(n_trials):
+                # if non_na[i]:
+                #     align_mat[i, :int(ITIs[i])] = neuron_trace[int(t_outcome_curr.iloc[i]):int(t_center_next.iloc[i])]
+
+                row = curr_df.iloc[i]
+                ITI = int(row['ITI'])
+                resp_idx = int(row['ResponseIndex'])
+                next_center_idx = int(row['NextCenterIndex'])
+                align_mat[:, i, :ITI] = spike_mat[:, resp_idx:next_center_idx]
+
+            align_mat = align_mat.reshape(n_nrns, n_trials, -1, downsample_dt)
+            align_mat = align_mat.sum(axis=-1)  # sum over ("marginalize") bins
+
+            return align_mat, 0
+
+
+        else:
+            start_aligned_spike_mat_in_ms = joblib.load(self.data_path + f'trialwise_start_align_spike_mat_in_ms')
+            n_nrns, n_trials, T_ms = start_aligned_spike_mat_in_ms.shape
+            start_aligned_spike_mat_subbed = trace_utils.subsample_spike_mat(start_aligned_spike_mat_in_ms,
+                                                                             downsample_dt)
+            sps = 1000 / downsample_dt
+
+            assert start_aligned_spike_mat_subbed.shape[1] == len(self.choice_df) == n_trials
+            event_idx_dict = trace_utils.get_trial_event_indices(in_reference_to='TrialStart', behav_df=self.choice_df,
+                                                                 sps=sps, resp_start_align_buffer=None)
 
         if trace_type=='stimulus':
             event_idx = event_idx_dict['stim_on']
@@ -117,6 +161,111 @@ class DataContainer:
             event_idx = event_idx.astype(int)
         elif trace_type == 'leaving':
             event_idx = (self.choice_df['ITI_Start'].values * sps).astype(int)
+        elif trace_type == 'trial_end':
+            event_idx = event_idx_dict['trial_len_in_bins']
+        elif trace_type == 'trial_start':
+            event_idx = np.zeros_like(event_idx_dict['trial_len_in_bins'], dtype=int)
+
+
+        align_point = event_idx.max()
+        trial_len_arr = event_idx_dict['trial_len_in_bins']
+        after_event_arr = trial_len_arr - event_idx
+        align_mat = np.zeros((n_trials, align_point + np.max(after_event_arr)))
+        for i in range(n_trials):
+            align_mat[i, align_point - event_idx[i]: align_point + after_event_arr[i]] = start_aligned_spike_mat_subbed[i, :trial_len_arr[i]]
+
+        return align_mat, align_point
+
+    def align_full_trial_trace_to_(self, nrn_rowID, trace_type, downsample_dt):
+        start_aligned_spike_mat_in_ms = joblib.load(self.data_path + f'trialwise_start_align_spike_mat_in_ms')
+        n_nrns, n_trials, T_ms = start_aligned_spike_mat_in_ms.shape
+        start_aligned_spike_mat_subbed = trace_utils.subsample_spike_mat(start_aligned_spike_mat_in_ms[nrn_rowID].reshape(1, n_trials, T_ms), downsample_dt)[0]
+        sps = 1000/downsample_dt
+
+        assert start_aligned_spike_mat_subbed.shape[0] == len(self.choice_df) == n_trials
+        event_idx_dict = trace_utils.get_trial_event_indices(in_reference_to='TrialStart', behav_df=self.choice_df, sps=sps, resp_start_align_buffer=None)
+
+        if trace_type == 'wrap':
+            spike_mat = joblib.load(self.data_path + 'spike_mat_in_ms.npy')['spike_mat']
+            neuron_trace = spike_mat[nrn_rowID]
+
+            # curr_df = self.choice_df.iloc[:-1]
+            # next_trial_nums = (curr_df['TrialNumber'].values+1)
+            # next_df = self.behav_df.query("TrialNumber in @next_trial_nums")
+            # if len(next_df) != len(curr_df):
+            #     found_curr_trial_nums = next_df['TrialNumber'].values - 1
+            #     curr_df = curr_df.query("TrialNumber in @found_curr_trial_nums")
+            # assert np.all(next_df['TrialNumber'].values == curr_df['TrialNumber'].values + 1)
+
+            # t_outcome_curr = np.round(1000 * (curr_df['TTLTrialStartTime'] + curr_df['ResponseEnd']))
+            # assert np.sum(t_outcome_curr.isna()) == 0
+            #
+            # t_center_next = np.round(1000 * (next_df['TTLTrialStartTime'] + next_df['PokeCenterStart']))
+            # assert len(t_outcome_curr) == len(t_center_next)
+
+            # non_na = (~t_center_next.isna()).values & (~t_outcome_curr.isna()).values
+            # assert np.all(t_center_next.isna().values | t_outcome_curr.isna().values == (t_center_next.isna()).values)
+
+            # ITIs = t_center_next.values - t_outcome_curr.values
+            # assert np.all(ITIs[non_na]>0)
+            # assert np.all((t_outcome_curr.values[1:] - t_center_next.values[:-1])[non_na[:-1]] > 0)
+
+            # assert len(non_na) == len(curr_df)
+            # non_na = np.append(non_na, False)
+
+            curr_df = self.choice_df[['TrialNumber', 'TTLTrialStartTime', 'ResponseEnd', 'NextTrialStart']]
+            curr_df['ResponseIndex'] =  np.round(1000 * (curr_df['TTLTrialStartTime'] + curr_df['ResponseEnd']))
+            next_trial_nums = (curr_df['TrialNumber'].values+1)
+            next_df = self.behav_df.query("TrialNumber in @next_trial_nums")[['TrialNumber', 'PokeCenterStart']]
+            next_df['TrialNumber'] = next_df['TrialNumber'] - 1
+
+            next_df.rename(columns={'PokeCenterStart': 'NextCenterPoke'}, inplace=True)
+            curr_df = curr_df.merge(next_df, how='left')
+            curr_df['NextCenterIndex'] = np.round(1000 * (curr_df['NextTrialStart'] + curr_df['NextCenterPoke']))
+            curr_df = curr_df[['TrialNumber', 'TTLTrialStartTime', 'ResponseEnd', 'ResponseIndex', 'NextTrialStart',
+                               'NextCenterPoke', 'NextCenterIndex']]
+            curr_df['ITI'] = curr_df['NextCenterIndex'] - curr_df['ResponseIndex']
+            min_ITI = curr_df['ITI'].min()
+            na_idx = curr_df['NextCenterIndex'].isna()
+            curr_df.loc[na_idx, 'NextCenterIndex'] = curr_df.loc[na_idx, 'ResponseIndex'] + min_ITI
+            curr_df.loc[na_idx, 'ITI'] = min_ITI
+
+            align_mat = np.full((n_trials, int(np.ceil(np.nanmax(curr_df['ITI'])/10)*10)), np.nan)
+            for i in range(n_trials):
+                # if non_na[i]:
+                #     align_mat[i, :int(ITIs[i])] = neuron_trace[int(t_outcome_curr.iloc[i]):int(t_center_next.iloc[i])]
+
+                row = curr_df.iloc[i]
+                ITI = int(row['ITI'])
+                resp_idx = int(row['ResponseIndex'])
+                next_center_idx = int(row['NextCenterIndex'])
+                align_mat[i, :ITI] = neuron_trace[resp_idx:next_center_idx]
+
+            align_mat = align_mat.reshape(n_trials, -1, downsample_dt)
+            align_mat = align_mat.sum(axis=-1)  # sum over ("marginalize") bins
+
+            return align_mat, 0
+
+
+
+        elif trace_type=='stimulus':
+            event_idx = event_idx_dict['stim_on']
+        elif trace_type == 'response':
+            event_idx = event_idx_dict['response_start']
+        elif trace_type == 'reward':
+            event_idx = event_idx_dict['response_end']
+        elif trace_type == 'water':
+            event_idx = (self.choice_df['WaterDelivery'].values * sps)
+            nan_idx = np.where(np.isnan(event_idx))
+            event_idx[nan_idx] = event_idx_dict['response_end'][nan_idx] + 5
+            event_idx = event_idx.astype(int)
+        elif trace_type == 'leaving':
+            event_idx = (self.choice_df['ITI_Start'].values * sps).astype(int)
+        elif trace_type == 'trial_end':
+            event_idx = event_idx_dict['trial_len_in_bins']
+        elif trace_type == 'trial_start':
+            event_idx = np.zeros_like(event_idx_dict['trial_len_in_bins'], dtype=int)
+
 
         align_point = event_idx.max()
         trial_len_arr = event_idx_dict['trial_len_in_bins']
