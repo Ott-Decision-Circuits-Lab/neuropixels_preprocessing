@@ -279,17 +279,24 @@ def align_traces_to_task_events(behav_df,
 #                               Interpolation Functions                                      #
 # ------------------------------------------------------------------------------------------ #
 def warp_traces(spike_mat, behav_df, interp_d):
-    assert spike_mat.shape[0] == behav_df.shape[0]
-    traces = spike_mat.reshape(spike_mat.shape[0], -1, interp_d['downsample_dt']).sum(axis=-1)
-    traces = traces[np.newaxis, :, :]
-    _, n_trials, n_bins = traces.shape
+    # assert spike_mat.shape[0] == behav_df.shape[0]
+    # traces = spike_mat.reshape(spike_mat.shape[0], -1, interp_d['downsample_dt']).sum(axis=-1)
+    # traces = traces[np.newaxis, :, :]
+    # _, n_trials, n_bins = traces.shape
 
-    event_idx = get_trial_event_indices(interp_d['trial_times_in_reference_to'], behav_df, 1000 / interp_d['downsample_dt'],
-                                        interp_d['resp_start_align_buffer'])
     # -------------------------------------------------------------------- #
-    if np.sum(event_idx['trial_len_in_bins'] > n_bins):
-        print(
-            f"{np.sum(event_idx['trial_len_in_bins'] > n_bins)} trial lengths greater than trace length. Setting to trace length.")
+    #                           Prepare data                               #
+    # -------------------------------------------------------------------- #
+    assert spike_mat.shape[1] == behav_df.shape[0]
+    traces = subsample_spike_mat(spike_mat, interp_d['downsample_dt'])
+    n_neurons, n_trials, n_time_bins  = traces.shape
+    sps = 1000 / interp_d['downsample_dt']
+
+
+    event_idx = get_trial_event_indices(interp_d['trial_times_in_reference_to'], behav_df, sps, interp_d['resp_start_align_buffer'])
+    # -------------------------------------------------------------------- #
+    if np.sum(event_idx['trial_len_in_bins'] > n_time_bins):
+        print(f"{np.sum(event_idx['trial_len_in_bins'] > n_bins)} trial lengths greater than trace length. Setting to trace length.")
         event_idx['trial_len_in_bins'][event_idx['trial_len_in_bins'] > n_bins] = n_bins
 
     interp_traces = []
@@ -298,12 +305,12 @@ def warp_traces(spike_mat, behav_df, interp_d):
                                                      interp_d['trial_event_interpolation_lengths'],
                                                      interp_d['pre_center_interval'],
                                                      interp_d['post_response_interval']))
-    interp_traces = np.array(interp_traces)[:, 0, :]
-    assert interp_traces.shape == (n_trials, sum(interp_d['trial_event_interpolation_lengths']))
+    interp_traces = np.array(interp_traces)
+    if (interp_traces.shape[0] == n_trials) & (interp_traces.shape[1] == n_neurons):
+        interp_traces = interp_traces.transpose(1, 0, 2)
+    assert interp_traces.shape == (n_neurons, n_trials, sum(interp_d['trial_event_interpolation_lengths']))
+    return interp_traces
 
-    interp_trace_smooth = gaussian_filter1d(interp_traces.mean(axis=0), sigma=filter_std)
-    assert interp_trace_smooth.shape == (spike_mat.shape[0], sum(interp_d['trial_event_interpolation_lengths']))
-    return interp_trace_smooth
 
 def interpolate_traces(behav_df,
                        trialwise_start_align_spike_mat_in_ms,
@@ -315,33 +322,10 @@ def interpolate_traces(behav_df,
     will have the biggest effect on the response delay (anticipation) period
     """
     print('Interpolating (warping) traces...')
-    d = interpolation_param_dict
-    
-    # -------------------------------------------------------------------- #
-    #                           Prepare data                               #
-    # -------------------------------------------------------------------- #
-    traces = subsample_spike_mat(trialwise_start_align_spike_mat_in_ms, d['downsample_dt'])
-    n_neurons, n_trials, n_time_bins  = traces.shape
-    sps = 1000 / d['downsample_dt']  # (samples per second) resolution of aligned traces
 
-    print(f'Check: the trial number in the spike and behavioral data match: {len(behav_df)}, {n_trials}')
+    interp_traces = warp_traces(trialwise_start_align_spike_mat_in_ms, behav_df, interpolation_param_dict)
 
-    event_idx = get_trial_event_indices(d['trial_times_in_reference_to'], behav_df, sps, d['resp_start_align_buffer'])
-    # -------------------------------------------------------------------- #
-    if np.sum(event_idx['trial_len_in_bins'] > n_time_bins):
-        print(f"{np.sum(event_idx['trial_len_in_bins'] > n_time_bins)} trial lengths greater than trace length. Setting to trace length.")
-        event_idx['trial_len_in_bins'][event_idx['trial_len_in_bins'] > n_time_bins] = n_time_bins
-
-    interp_traces = []
-    for trial_i in trange(n_trials):
-        interp_traces.append(interpolate_trial_trace(trial_i, traces, event_idx, 
-                                                     d['trial_event_interpolation_lengths'], 
-                                                     d['pre_center_interval'], 
-                                                     d['post_response_interval']))
-    interp_traces = np.array(interp_traces)
-    interp_traces = interp_traces.transpose(1, 0, 2)
-    assert interp_traces.shape == (n_neurons, n_trials, sum(d['trial_event_interpolation_lengths']))
-    joblib.dump(dict(traces=interp_traces, ind=d['trial_event_interpolation_lengths'], params=d), 
+    joblib.dump(dict(traces=interp_traces, ind=d['trial_event_interpolation_lengths'], params=d),
                 save_dir + f"interp_aligned_traces_{d['downsample_dt']}ms_bins", compress=5)
 
 
