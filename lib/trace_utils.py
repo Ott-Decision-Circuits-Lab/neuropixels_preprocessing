@@ -278,6 +278,33 @@ def align_traces_to_task_events(behav_df,
 # ------------------------------------------------------------------------------------------ #
 #                               Interpolation Functions                                      #
 # ------------------------------------------------------------------------------------------ #
+def warp_traces(spike_mat, behav_df, interp_d):
+    assert spike_mat.shape[0] == behav_df.shape[0]
+    traces = spike_mat.reshape(spike_mat.shape[0], -1, interp_d['downsample_dt']).sum(axis=-1)
+    traces = traces[np.newaxis, :, :]
+    _, n_trials, n_bins = traces.shape
+
+    event_idx = get_trial_event_indices(interp_d['trial_times_in_reference_to'], behav_df, 1000 / interp_d['downsample_dt'],
+                                        interp_d['resp_start_align_buffer'])
+    # -------------------------------------------------------------------- #
+    if np.sum(event_idx['trial_len_in_bins'] > n_bins):
+        print(
+            f"{np.sum(event_idx['trial_len_in_bins'] > n_bins)} trial lengths greater than trace length. Setting to trace length.")
+        event_idx['trial_len_in_bins'][event_idx['trial_len_in_bins'] > n_bins] = n_bins
+
+    interp_traces = []
+    for trial_i in trange(n_trials):
+        interp_traces.append(interpolate_trial_trace(trial_i, traces, event_idx,
+                                                     interp_d['trial_event_interpolation_lengths'],
+                                                     interp_d['pre_center_interval'],
+                                                     interp_d['post_response_interval']))
+    interp_traces = np.array(interp_traces)[:, 0, :]
+    assert interp_traces.shape == (n_trials, sum(interp_d['trial_event_interpolation_lengths']))
+
+    interp_trace_smooth = gaussian_filter1d(interp_traces.mean(axis=0), sigma=filter_std)
+    assert interp_trace_smooth.shape == (spike_mat.shape[0], sum(interp_d['trial_event_interpolation_lengths']))
+    return interp_trace_smooth
+
 def interpolate_traces(behav_df,
                        trialwise_start_align_spike_mat_in_ms,
                        interpolation_param_dict,

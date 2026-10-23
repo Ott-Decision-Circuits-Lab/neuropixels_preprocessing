@@ -103,7 +103,7 @@ class DataContainer:
             n_nrns, T_ms = spike_mat.shape
             n_trials = len(self.choice_df)
 
-            curr_df = self.choice_df[['TrialNumber', 'TTLTrialStartTime', 'ResponseEnd', 'NextTrialStart']]
+            curr_df = self.choice_df[['TrialNumber', 'TTLTrialStartTime', 'ResponseEnd', 'NextTrialStart']].copy()
             curr_df['ResponseIndex'] =  np.round(1000 * (curr_df['TTLTrialStartTime'] + curr_df['ResponseEnd']))
             next_trial_nums = (curr_df['TrialNumber'].values+1)
             next_df = self.behav_df.query("TrialNumber in @next_trial_nums")[['TrialNumber', 'PokeCenterStart']]
