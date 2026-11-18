@@ -170,9 +170,9 @@ class DataContainer:
         align_point = event_idx.max()
         trial_len_arr = event_idx_dict['trial_len_in_bins']
         after_event_arr = trial_len_arr - event_idx
-        align_mat = np.zeros((n_trials, align_point + np.max(after_event_arr)))
+        align_mat = np.zeros((n_nrns, n_trials, align_point + np.max(after_event_arr)))
         for i in range(n_trials):
-            align_mat[i, align_point - event_idx[i]: align_point + after_event_arr[i]] = start_aligned_spike_mat_subbed[i, :trial_len_arr[i]]
+            align_mat[:, i, align_point - event_idx[i]: align_point + after_event_arr[i]] = start_aligned_spike_mat_subbed[:, i, :trial_len_arr[i]]
 
         return align_mat, align_point
 
