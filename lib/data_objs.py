@@ -14,6 +14,8 @@ from scipy.ndimage import gaussian_filter1d
 import os
 import glob
 import joblib
+import re
+import xarray as xr
 
 import neuropixels_preprocessing.lib.trace_utils as trace_utils
 import neuropixels_preprocessing.lib.behavior_utils as bu
@@ -26,6 +28,7 @@ class DataContainer:
         self.choice_df = bu.select_choice_trials_w_TTLs(self.behav_df, verbose)
         self.metadata = metadata
         self.objID = f"{metadata['rat_name']}_{metadata['date']}_{metadata['task']}"
+        self.n_neurons = len(self.metadata['nrn_phy_ids'])
         if 'probe_num' in metadata:
            self.objID += f"_probe{metadata['probe_num']}"
             
@@ -95,6 +98,12 @@ class DataContainer:
         else:
             raise NotImplementedError()
 
+    def get_start_aligned_spikes(self):
+        da = xr.open_dataarray(self.data_path + 'start-aligned_subsampled_spikes_xr')
+        assert da.shape[:2] == (self.n_neurons, len(self.choice_df))
+        match = re.search(r"(\d+(?:\.\d+)?)", [d for d in da.dims if "time" in d][0])
+        sps = 1000 / int(match.group(1))
+        return da, sps
 
     def align_full_trial_traces_to_(self, trace_type, downsample_dt):
 
