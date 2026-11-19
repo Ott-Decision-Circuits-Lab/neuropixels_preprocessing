@@ -156,12 +156,12 @@ def get_trial_event_indices(in_reference_to, behav_df, sps, resp_start_align_buf
         # reward is waiting time after choice, which starts at resp_start_align_buffer
         # things are already response aligned
         response_end_idx = (sps * (response_end - choice_port_entry) + resp_start_align_buffer).astype('int')
-    return dict(trial_len_in_bins=trial_len_in_bins,
+    return dict(trial_end=trial_len_in_bins,
                 center_poke=center_poke_idx,
-                stim_on=stim_on_idx,
-                stim_off=stim_off_idx,
-                response_start=response_start_idx,
-                response_end=response_end_idx)
+                stimulus_on=stim_on_idx,
+                stimulus_off=stim_off_idx,
+                choice=response_start_idx,
+                outcome=response_end_idx)
 
 
 def align_helper(traces, begin_arr, end_arr, index_arr, pre_buffer, post_buffer):
