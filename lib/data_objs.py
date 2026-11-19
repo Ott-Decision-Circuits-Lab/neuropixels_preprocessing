@@ -147,43 +147,38 @@ class DataContainer:
 
 
         else:
-            start_aligned_spike_mat_in_ms = joblib.load(self.data_path + f'trialwise_start_align_spike_mat_in_ms')
-            n_nrns, n_trials, T_ms = start_aligned_spike_mat_in_ms.shape
-            start_aligned_spike_mat_subbed = trace_utils.subsample_spike_mat(start_aligned_spike_mat_in_ms,
-                                                                             downsample_dt)
-            sps = 1000 / downsample_dt
-
-            assert start_aligned_spike_mat_subbed.shape[1] == len(self.choice_df) == n_trials
+            # start_aligned_spike_mat_in_ms = joblib.load(self.data_path + f'trialwise_start_align_spike_mat_in_ms')
+            # n_nrns, n_trials, T_ms = start_aligned_spike_mat_in_ms.shape
+            # start_aligned_spike_mat_subbed = trace_utils.subsample_spike_mat(start_aligned_spike_mat_in_ms,
+            #                                                                  downsample_dt)
+            # sps = 1000 / downsample_dt
+            start_aligned_spike_mat_subbed, sps = self.get_start_aligned_spikes()
             event_idx_dict = trace_utils.get_trial_event_indices(in_reference_to='TrialStart', behav_df=self.choice_df,
                                                                  sps=sps, resp_start_align_buffer=None)
 
-        if trace_type=='stimulus':
-            event_idx = event_idx_dict['stim_on']
-        elif trace_type == 'response':
-            event_idx = event_idx_dict['response_start']
-        elif trace_type == 'reward':
-            event_idx = event_idx_dict['response_end']
-        elif trace_type == 'water':
-            event_idx = (self.choice_df['WaterDelivery'].values * sps)
-            nan_idx = np.where(np.isnan(event_idx))
-            event_idx[nan_idx] = event_idx_dict['response_end'][nan_idx] + 5
-            event_idx = event_idx.astype(int)
-        elif trace_type == 'leaving':
-            event_idx = (self.choice_df['ITI_Start'].values * sps).astype(int)
-        elif trace_type == 'trial_end':
-            event_idx = event_idx_dict['trial_len_in_bins']
-        elif trace_type == 'trial_start':
-            event_idx = np.zeros_like(event_idx_dict['trial_len_in_bins'], dtype=int)
+        raise NotImplementedError, 'Use functions in trace_utils instead.  This does not account for event edges.'
 
-
-        align_point = event_idx.max()
-        trial_len_arr = event_idx_dict['trial_len_in_bins']
-        after_event_arr = trial_len_arr - event_idx
-        align_mat = np.zeros((n_nrns, n_trials, align_point + np.max(after_event_arr)))
-        for i in range(n_trials):
-            align_mat[:, i, align_point - event_idx[i]: align_point + after_event_arr[i]] = start_aligned_spike_mat_subbed[:, i, :trial_len_arr[i]]
-
-        return align_mat, align_point
+        # if trace_type == 'trial_start':
+        #     return
+        #     # event_idx = np.zeros_like(event_idx_dict['trial_len_in_bins'], dtype=int)
+        # elif trace_type == 'water':
+        #     event_idx = (self.choice_df['WaterDelivery'].values * sps)
+        #     nan_idx = np.where(np.isnan(event_idx))
+        #     event_idx[nan_idx] = event_idx_dict['response_end'][nan_idx] + 5
+        #     event_idx = event_idx.astype(int)
+        # elif trace_type == 'leaving':
+        #     event_idx = (self.choice_df['ITI_Start'].values * sps).astype(int)
+        # else:
+        #     event_idx = event_idx_dict[trace_type]
+        #
+        # align_point = event_idx.max()
+        # trial_len_arr = event_idx_dict['trial_end']
+        # after_event_arr = trial_len_arr - event_idx
+        # align_mat = np.zeros((self.n_neurons, len(self.choice_df), align_point + np.max(after_event_arr)))
+        # for i in range(len(self.choice_df)):
+        #     align_mat[:, i, align_point - event_idx[i]: align_point + after_event_arr[i]] = start_aligned_spike_mat_subbed[:, i, :trial_len_arr[i]]
+        #
+        # return align_mat, align_point
 
     def align_full_trial_trace_to_(self, nrn_rowID, trace_type, downsample_dt):
         start_aligned_spike_mat_in_ms = joblib.load(self.data_path + f'trialwise_start_align_spike_mat_in_ms')
