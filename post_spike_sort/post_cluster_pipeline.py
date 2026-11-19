@@ -158,7 +158,7 @@ for metadata in metadata_l:
             # Chop neuron activity into trials and align to trial start
             # -------------------------------------------------------- #
             probe_save_dir = preprocess_dir + f"probe{probe_i}/"
-            trialwise_binned_mat, choice_df = tu.align_trialwise_spike_times_to_start(preprocess_dir, probe_save_dir)
+            trialwise_binned_mat, choice_df = tu.align_trialwise_spike_times_to_start(preprocess_dir, probe_save_dir, downsample_dt=trace_subsample_bin_size_ms)
 
             n_probe_neurons, n_trials, _ = trialwise_binned_mat.shape
             n_neurons += n_probe_neurons
@@ -174,7 +174,7 @@ for metadata in metadata_l:
             # Save datapath, behavioral and metadata to data object
             # -------------------------------------------------------- #
             print('Creating data object...')
-            metadata['nrn_phy_ids'] = joblib.load(probe_save_dir + f"spike_mat_in_ms.npy")['row_cluster_id']
+            metadata['nrn_phy_ids'] = trialwise_binned_mat.phyID
             data_objs.TwoAFC(probe_save_dir, choice_df, metadata, verbose=False).to_pickle()
             print('---------------------------------------------------------------------------------')
 

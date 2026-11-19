@@ -10,6 +10,7 @@ from os import listdir
 import numpy as np
 import pandas as pd
 import h5py
+import xarray as xr
 from joblib import load, dump
 from scipy.io.matlab import loadmat
 
@@ -873,11 +874,13 @@ def shorten_session_data(session_data, n_trials):
 
 
 # ---------------------------------------------------------------------------------------- #
-def align_trialwise_spike_times_to_start(datapath, probe_datapath):
+def align_trialwise_spike_times_to_start(datapath, probe_datapath, downsample_dt):
     print('---------------------------------------------------------------------------------')
     print('Aligning spikes to trial start...')
     # load neural data: [number of neurons x time bins in ms]
-    spike_mat = load(probe_datapath + 'spike_mat_in_ms.npy')['spike_mat']
+    spike_res = load(probe_datapath + 'spike_mat_in_ms.npy')
+    spike_mat = spike_res['spike_mat']
+    nrn_phy_ids = spike_res['row_cluster_id']
 
     # make pandas behavior dataframe
     choice_df = bu.select_choice_trials_w_TTLs(load(datapath + 'behav_df'))
@@ -885,11 +888,18 @@ def align_trialwise_spike_times_to_start(datapath, probe_datapath):
     # align spike times to behavioral data timeframe
     # spike_times_start_aligned = array [n_neurons x n_trials x longest_trial period in ms]
     trialwise_start_align_spike_mat_in_ms, _ = trace_utils.trial_start_align(choice_df, spike_mat, sps=1000)
-    assert trialwise_start_align_spike_mat_in_ms.shape[1] == len(choice_df)
+    assert trialwise_start_align_spike_mat_in_ms.shape[:-1] == (spike_mat.shape[0], len(choice_df))
 
-    dump(trialwise_start_align_spike_mat_in_ms, probe_datapath + 'trialwise_start_align_spike_mat_in_ms', compress=3)
-    print('Results saved to ', probe_datapath + 'trialwise_start_align_spike_mat_in_ms')
-    print('---------------------------------------------------------------------------------')
+    n_nrns, n_trials, T_ms = trialwise_start_align_spike_mat_in_ms.shape
+    start_aligned_spike_mat_subbed = trace_utils.subsample_spike_mat(trialwise_start_align_spike_mat_in_ms, downsample_dt)
+    assert start_aligned_spike_mat_subbed.shape[1] == len(choice_df) == n_trials
 
-    return trialwise_start_align_spike_mat_in_ms, choice_df
+    start_aligned_xr = xr.DataArray(data=start_aligned_spike_mat_subbed, dims=['neuron', 'trial', f"time ({downsample_dt}ms)"])
+    start_aligned_xr = start_aligned_xr.assign_coords(phyID=xr.DataArray(nrn_phy_ids, dims="neuron"))
+
+    # Convert to a Dataset and save with level 5 zlib compression
+    ds = start_aligned_xr.to_dataset(name="spikes")
+    ds.to_netcdf(probe_datapath + 'start-aligned_subsampled_spikes_xr', engine="netcdf4", encoding={"spikes": {"zlib": True, "complevel": 5}} )
+
+    return start_aligned_xr, choice_df
 
